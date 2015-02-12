@@ -13,6 +13,21 @@
 
 hid_t root_group = -1;
 
+size_t hdf5_fuse_filesize(const char* path)
+{
+  hid_t dataset = H5Dopen(root_group, path, H5P_DEFAULT);
+  if(dataset < 0)
+    return 0;
+
+  hid_t datatype = H5Dget_type(dataset);
+  hid_t dataspace = H5Dget_space(dataset);
+  size_t type_size = H5Tget_size(datatype);
+  size_t num_elems = H5Sget_simple_extent_npoints(dataspace);
+  H5Sclose(dataspace);
+  H5Dclose(dataset);
+  return num_elems * type_size;
+}
+
 static int hdf5_fuse_getattr(const char* path, struct stat *stbuf)
 {
   memset(stbuf, 0, sizeof(struct stat));
@@ -28,10 +43,8 @@ static int hdf5_fuse_getattr(const char* path, struct stat *stbuf)
     stbuf->st_nlink = 2 + group_info.nlinks;
     stbuf->st_size = group_info.nlinks;
   } else if (obj_info.type == H5O_TYPE_DATASET) {
-    hid_t dataset = H5Dopen(root_group, path, H5P_DEFAULT);
     stbuf->st_mode = S_IFREG | 0444;
-    stbuf->st_size = H5Dget_storage_size(dataset);
-    H5Dclose(dataset);
+    stbuf->st_size = hdf5_fuse_filesize(path);
   } else {
     stbuf->st_mode = S_IFCHR | 0000;
     stbuf->st_size = 0;
