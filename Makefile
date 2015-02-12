@@ -1,6 +1,6 @@
 CC=clang
-CFLAGS=-Wall -Wextra -Werror $(shell pkg-config --cflags fuse)
-LIBS=$(shell pkg-config --libs fuse)
+CFLAGS=-Wall -Wextra $(shell pkg-config --cflags fuse)
+LIBS=-lhdf5 $(shell pkg-config --libs fuse)
 
 hdf5: main.c
 	$(CC) $(CFLAGS) -o hdf5 main.c $(LIBS)

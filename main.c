@@ -4,9 +4,12 @@
 
 #define FUSE_USE_VERSION 26
 
-#include <fuse.h>
-#include <string.h>
 #include <errno.h>
+#include <fuse.h>
+#include <hdf5.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 static int hdf5_fuse_getattr(const char* path, struct stat *stbuf)
 {
@@ -42,5 +45,30 @@ static struct fuse_operations hdf5_oper = {
 
 int main(int argc, char** argv)
 {
-  return fuse_main(argc, argv, &hdf5_oper, NULL);
+  if (argc != 3) {
+    printf("usage: %s <mount point> <hdf5 file>\n", argv[0]);
+    exit(0);
+  }
+
+  H5open();
+  //Check for hdf5 file
+  if (!H5Fis_hdf5(argv[2])) {
+    printf("invalid hdf5 file: %s\n", argv[2]);
+    exit(1);
+  }
+
+  //Attempt to open hdf5 file
+  hid_t file = H5Fopen(argv[2], H5F_ACC_RDONLY, H5P_DEFAULT);
+  if (file < 0) {
+    printf("failed to open hdf5 file: %s\n", argv[2]);
+    exit(1);
+  }
+
+  root_group = H5Gopen(file, "/", H5P_DEFAULT);
+
+  int ret = 0;
+  ret = fuse_main(argc - 1, argv, &hdf5_oper, NULL);
+  H5Fclose(file);
+  H5close();
+  return ret;
 }
