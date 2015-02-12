@@ -11,15 +11,27 @@
 #include <stdlib.h>
 #include <string.h>
 
+hid_t root_group = -1;
+
 static int hdf5_fuse_getattr(const char* path, struct stat *stbuf)
 {
   memset(stbuf, 0, sizeof(struct stat));
-  if (strcmp(path, "/") == 0) {
-    stbuf->st_mode = S_IFDIR | 0755;
-    stbuf->st_nlink = 2;
-  } else {
+
+  H5O_info_t obj_info;
+  if(H5Oget_info_by_name(root_group, path, &obj_info, H5P_DEFAULT) < 0)
     return -ENOENT;
+
+  if(obj_info.type == H5O_TYPE_GROUP) {
+    stbuf->st_mode = S_IFDIR | 0555;
+    H5G_info_t group_info;
+    H5Gget_info_by_name(root_group, path, &group_info, H5P_DEFAULT);
+    stbuf->st_nlink = 2 + group_info.nlinks;
+    stbuf->st_size = group_info.nlinks;
+  } else {
+    stbuf->st_mode = S_IFREG | 0444;
+    stbuf->st_size = 1;
   }
+
   return 0;
 }
 
@@ -29,11 +41,19 @@ static int hdf5_fuse_readdir(const char* path, void* buf, fuse_fill_dir_t filler
   (void) offset;
   (void) fi;
 
-  if (strcmp(path, "/") != 0)
+  H5G_info_t group_info;
+  if(H5Gget_info_by_name(root_group, path, &group_info, H5P_DEFAULT) < 0)
     return -ENOENT;
 
   filler(buf, ".", NULL, 0);
   filler(buf, "..", NULL, 0);
+
+  for(hsize_t i = 0; i < group_info.nlinks; ++i) {
+    char name[128];
+    H5Lget_name_by_idx(root_group, path,
+        H5_INDEX_NAME, H5_ITER_INC, i, name, 128, H5P_DEFAULT);
+    filler(buf, name, NULL, 0);
+  }
 
   return 0;
 }
