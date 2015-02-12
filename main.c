@@ -76,9 +76,40 @@ static int hdf5_fuse_readdir(const char* path, void* buf, fuse_fill_dir_t filler
   return 0;
 }
 
+static int hdf5_fuse_open(const char *path, struct fuse_file_info *fi)
+{
+  if((fi->flags & 3) != O_RDONLY)
+    return -EACCES;
+
+  H5O_info_t obj_info;
+  if(H5Oget_info_by_name(root_group, path, &obj_info, H5P_DEFAULT) < 0)
+    return -ENOENT;
+
+  return 0;
+}
+
+static int hdf5_fuse_read(const char *path, char *buf, size_t size, off_t offset,
+    struct fuse_file_info *fi)
+{
+  (void) fi;
+
+  hid_t dataset = H5Dopen(root_group, path, H5P_DEFAULT);
+  hid_t datatype = H5Dget_type(dataset);
+  size_t buf_size = hdf5_fuse_filesize(path);
+  char *hdf5_buf = malloc(buf_size);
+  H5Dread(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, hdf5_buf);
+  size_t copy_size = buf_size - offset < size ? buf_size - offset : size;
+  memcpy(buf, hdf5_buf+offset, copy_size);
+  free(hdf5_buf);
+  H5Dclose(dataset);
+  return copy_size;
+}
+
 static struct fuse_operations hdf5_oper = {
   .getattr = hdf5_fuse_getattr,
   .readdir = hdf5_fuse_readdir,
+  .open = hdf5_fuse_open,
+  .read = hdf5_fuse_read,
 };
 
 int main(int argc, char** argv)
@@ -104,8 +135,7 @@ int main(int argc, char** argv)
 
   root_group = H5Gopen(file, "/", H5P_DEFAULT);
 
-  int ret = 0;
-  ret = fuse_main(argc - 1, argv, &hdf5_oper, NULL);
+  int ret = fuse_main(argc - 1, argv, &hdf5_oper, NULL);
   H5Fclose(file);
   H5close();
   return ret;
