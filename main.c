@@ -27,9 +27,14 @@ static int hdf5_fuse_getattr(const char* path, struct stat *stbuf)
     H5Gget_info_by_name(root_group, path, &group_info, H5P_DEFAULT);
     stbuf->st_nlink = 2 + group_info.nlinks;
     stbuf->st_size = group_info.nlinks;
-  } else {
+  } else if (obj_info.type == H5O_TYPE_DATASET) {
+    hid_t dataset = H5Dopen(root_group, path, H5P_DEFAULT);
     stbuf->st_mode = S_IFREG | 0444;
-    stbuf->st_size = 1;
+    stbuf->st_size = H5Dget_storage_size(dataset);
+    H5Dclose(dataset);
+  } else {
+    stbuf->st_mode = S_IFCHR | 0000;
+    stbuf->st_size = 0;
   }
 
   return 0;
