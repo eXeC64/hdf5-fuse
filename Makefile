@@ -1,9 +1,12 @@
-CC=clang
-CFLAGS=-Wall -Wextra $(shell pkg-config --cflags fuse)
-LIBS=-lhdf5 $(shell pkg-config --libs fuse)
+.PHONY: clean
 
-hdf5: main.c
-	$(CC) $(CFLAGS) -o hdf5 main.c $(LIBS)
+CFLAGS = -Wall -Wextra $(shell pkg-config --cflags fuse)
+LDLIBS =-lhdf5 $(shell pkg-config --libs fuse)
+TARGET = hdf5
+SOURCES = main.c
+
+$(TARGET): $(SOURCES)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 clean:
-	rm -f hdf5
+	$(RM) $(TARGET)
